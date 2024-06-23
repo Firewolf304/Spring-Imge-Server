@@ -1,0 +1,10 @@
+<Context>
+    <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow=".*"/>
+    <Context>
+        <Resources>
+            <PreResources className="org.apache.catalina.webresources.DirResourceSet"
+                          base="${catalina.base}/webapps/yourapp/WEB-INF/classes/public"
+                          webAppMount="/" />
+        </Resources>
+    </Context>
+</Context>

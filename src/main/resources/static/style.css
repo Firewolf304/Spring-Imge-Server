@@ -1,0 +1,81 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+.sidebar {
+    width: 200px;
+    background-color: #f4f4f4;
+    padding: 10px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+.content {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+}
+#image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 10px;
+}
+#image-gallery img {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+
+button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button #delete-button{
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #0056b3;
+}
+
+
+
+#pagination {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+.page-item {
+    margin: 0 5px;
+}
+.page-item button {
+    padding: 5px 10px;
+    background-color: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.page-item button.active {
+    background-color: #007bff;
+    color: white;
+}
+.page-item button:hover {
+    background-color: #0056b3;
+    color: white;
+}
