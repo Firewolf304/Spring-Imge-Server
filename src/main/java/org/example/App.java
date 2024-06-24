@@ -18,7 +18,7 @@ import static org.springframework.boot.logging.LogLevel.INFO;
 
 @SpringBootApplication
 @EnableAutoConfiguration
-//@EnableJpaRepositories
+@EnableJpaRepositories
 public class App {
     Logger logger = LoggerFactory.getLogger(App.class);
     public static void main( String[] args ) {

@@ -1,6 +1,8 @@
 package org.example;
 
+import org.example.model.Image;
 import org.example.security.CustomUserDetails;
+import org.example.services.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -17,20 +19,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonWriter;
-import javax.json.JsonWriterFactory;
-import javax.json.stream.JsonGenerator;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import java.time.format.DateTimeFormatter;
 
 
@@ -44,10 +38,16 @@ public class Controller {
 
     @Value("${file.delete-access}")
     int DeleteAccess = 1;
+
+    @Value("${file.save-like-file}")
+    boolean saveLikeFile = false;
     //============== local
 
     @Autowired
     private CustomUserDetails userDetailsService;
+
+    @Autowired
+    private ImageService imageService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -83,12 +83,15 @@ public class Controller {
         if(!reason.equals("")) {
             responseHeaders.add("Content-Edit-Reason", reason);
         }
-        File folder = new File(ImagesPath);
-        List<String> fileNames = files.getFileNames(offset, count);
+        List<String> fileNames = new ArrayList<>();
         var obj = new JSONObject();
         obj.put("images", new JSONArray());
         obj.put("delete_access", new JSONArray());
-
+        if(saveLikeFile) {
+            fileNames = files.getFileNames(offset, count);
+        } else {
+            fileNames = imageService.getList(offset, count).toList();
+        }
         for(var a : fileNames) {
             ((JSONArray)obj.get("images")).put(a);
             if(!sess_id.isEmpty()) {
@@ -126,7 +129,12 @@ public class Controller {
             responseHeaders.add("Content-Edit-Reason", reason);
         }
         File folder = new File(ImagesPath);
-        List<String> fileNames = files.getPrivateFileNames(offset, count, user_id);
+        List<String> fileNames = new ArrayList<>();
+        if(saveLikeFile) {
+            fileNames = files.getPrivateFileNames(offset, count, user_id);
+        } else {
+            fileNames = imageService.getPrivateList(user_id, offset, count).toList();
+        }
         var obj = new JSONObject();
         obj.put("images", new JSONArray());
         obj.put("delete_access", new JSONArray());
@@ -145,19 +153,30 @@ public class Controller {
     }
 
     @RequestMapping(value = "/getfile/{file}", method = {RequestMethod.GET, RequestMethod.POST})
-    public ResponseEntity<Resource> downloadFile(@PathVariable("file") String fileName) {
+    public ResponseEntity<byte[]> downloadFile(@PathVariable("file") String fileName) {
         try {
-            Path filePath = Paths.get(ImagesPath).resolve(fileName).normalize();
-            Resource resource = new UrlResource(filePath.toUri());
-            if (resource.exists()) {
-                String contentType = "image/jpeg";
-                return ResponseEntity.ok()
-                        .contentType(MediaType.parseMediaType(contentType))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-                        .body(resource);
+            if(saveLikeFile) {
+                Path filePath = Paths.get(ImagesPath).resolve(fileName).normalize();
+                Resource resource = new UrlResource(filePath.toUri());
+                if (resource.exists()) {
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType("image/jpeg"))
+                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                            .body(resource.getContentAsByteArray());
+                } else {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+                }
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+                Optional<Image> imageOptional = imageService.getImage(fileName);
+                if (imageOptional.isPresent()) {
+                    Image image = imageOptional.get();
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType("image/jpeg"))
+                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + image.getName() + "\"")
+                            .body(image.getData());
+                }
             }
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
@@ -179,11 +198,15 @@ public class Controller {
             if(username.isEmpty()) {
                 throw new Exception("Bad request name");
             }
-
-
-            byte[] bytes = file.getBytes();
-            Path path = Paths.get(ImagesPath + dateTime + "--" + user_id.get("user_id") + "--" + username.get("username") + "--" + title + ".jpg");
-            Files.write(path, bytes);
+            title = title.replace("--", "__").replace("%", "");
+            String filename = dateTime + "--" + user_id.get("user_id") + "--" + username.get("username") + "--" + title + ".jpg";
+            if(saveLikeFile) {
+                byte[] bytes = file.getBytes();
+                Path path = Paths.get(ImagesPath + filename);
+                Files.write(path, bytes);
+            } else {
+                imageService.saveImage(file, filename);
+            }
             return ResponseEntity.ok().body("Ok");
         } catch (Exception e) {
             logger.error("Error upload: " + e.getMessage());
@@ -199,11 +222,17 @@ public class Controller {
             var access = userDetailsService.getAccessByUserID(user_id);
             var data = name.split("--");
             if(access <= DeleteAccess || Objects.equals(data[1], user_id.toString())) {
-                File myObj = new File(ImagesPath + name);
-                if(myObj.delete()) {
-                    return ResponseEntity.ok().body("OK");
+
+                if(saveLikeFile) {
+                    File myObj = new File(ImagesPath + name);
+                    if (myObj.delete()) {
+                        return ResponseEntity.ok().body("OK");
+                    } else {
+                        return ResponseEntity.badRequest().body("Error remove:");
+                    }
                 } else {
-                    return ResponseEntity.badRequest().body("Error upload:");
+                    imageService.removeImage(name);
+                    return ResponseEntity.ok().body("OK");
                 }
             }
 

@@ -1,5 +1,5 @@
 
-package org.example;
+package org.example.services;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
